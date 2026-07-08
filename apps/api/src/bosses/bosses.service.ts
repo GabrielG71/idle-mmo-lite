@@ -97,7 +97,7 @@ export class BossesService {
         .getRepository(CharacterBuild)
         .findOneOrFail({ where: { characterId: character.id } });
       const equipped = await loadEquippedItems(manager, build);
-      const bonuses = aggregateBuildBonuses(equipped, build.talents);
+      const bonuses = aggregateBuildBonuses(equipped, build.talents, character.prestigeTier);
 
       const { levelBefore, levelAfter, leveledUp } = settleAndResnapshot(character, {
         now,

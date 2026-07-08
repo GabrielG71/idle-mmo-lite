@@ -20,3 +20,12 @@ export const MAX_LEVEL = 9999;
 export function xpRequired(level: number): number {
   return Math.floor(BASE_XP * Math.pow(GROWTH, level - 1));
 }
+
+/**
+ * Fase 3 — prestígio (§2.2): reset de nível/XP + bônus permanente, desbloqueado
+ * por conteúdo (derrotar um boss específico), não por tempo.
+ */
+/** Boss cujo primeiro kill (histórico, independe do cooldown atual) libera o prestígio. */
+export const PRESTIGE_UNLOCK_BOSS_ID = 3; // Peakbound Wyrm (Shattered Peaks)
+/** +X% permanente em pctAttack e pctSurvivability por tier de prestígio (combat_power). */
+export const PRESTIGE_BONUS_PCT_PER_TIER = 10;

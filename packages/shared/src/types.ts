@@ -34,6 +34,7 @@ export interface ZoneDef {
 /** Estado core do personagem exposto ao cliente. */
 export interface CharacterState {
   id: string;
+  nickname: string | null;
   classId: number;
   level: number;
   xp: number;
@@ -110,6 +111,15 @@ export interface BossStatus {
   canChallenge: boolean;
 }
 
+/** Status de prestígio do personagem (Fase 3). */
+export interface PrestigeStatus {
+  unlocked: boolean;
+  currentTier: number;
+  bonusPctPerTier: number;
+  currentBonusPct: number;
+  nextBonusPct: number;
+}
+
 /** Resultado de matar um boss. */
 export interface BossKillResult {
   xpAwarded: number;
@@ -130,4 +140,26 @@ export interface AuthResponse {
 
 export interface CreateCharacterDto {
   classId: number;
+  nickname?: string;
+}
+
+/** Ranking global por combat_power (Fase 5, cache Redis; fonte de verdade é Postgres). */
+export interface LeaderboardEntry {
+  rank: number;
+  characterId: string;
+  nickname: string | null;
+  classId: number;
+  level: number;
+  prestigeTier: number;
+  combatPower: number;
+}
+
+/** Resultado de resgatar recompensas acumuladas de world boss. */
+export interface WorldBossClaimResult {
+  claimedGold: number;
+  claimedXp: number;
+  levelBefore: number;
+  levelAfter: number;
+  leveledUp: boolean;
+  character: CharacterState;
 }

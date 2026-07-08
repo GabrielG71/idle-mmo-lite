@@ -56,12 +56,12 @@ export class ItemsService {
         .findOneOrFail({ where: { id: character.classId } });
 
       const oldEquipped = await loadEquippedItems(manager, build);
-      const oldBonuses = aggregateBuildBonuses(oldEquipped, build.talents);
+      const oldBonuses = aggregateBuildBonuses(oldEquipped, build.talents, character.prestigeTier);
 
       build.equippedItems = { ...build.equippedItems, [template.slot]: item.id };
 
       const newEquipped = await loadEquippedItems(manager, build);
-      const newBonuses = aggregateBuildBonuses(newEquipped, build.talents);
+      const newBonuses = aggregateBuildBonuses(newEquipped, build.talents, character.prestigeTier);
 
       settleAndResnapshot(character, { now: new Date(), cls, zone, oldBonuses, newBonuses });
 
@@ -90,14 +90,14 @@ export class ItemsService {
         .findOneOrFail({ where: { id: character.classId } });
 
       const oldEquipped = await loadEquippedItems(manager, build);
-      const oldBonuses = aggregateBuildBonuses(oldEquipped, build.talents);
+      const oldBonuses = aggregateBuildBonuses(oldEquipped, build.talents, character.prestigeTier);
 
       const rest = { ...build.equippedItems };
       delete rest[slot];
       build.equippedItems = rest;
 
       const newEquipped = await loadEquippedItems(manager, build);
-      const newBonuses = aggregateBuildBonuses(newEquipped, build.talents);
+      const newBonuses = aggregateBuildBonuses(newEquipped, build.talents, character.prestigeTier);
 
       settleAndResnapshot(character, { now: new Date(), cls, zone, oldBonuses, newBonuses });
 

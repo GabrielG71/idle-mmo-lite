@@ -27,6 +27,10 @@ export class Character {
   @Column({ name: 'user_id', type: 'uuid' })
   userId!: string;
 
+  /** Opcional (Fase 5) — identidade no leaderboard; fallback é "Classe Lv.N". */
+  @Column({ type: 'text', nullable: true })
+  nickname!: string | null;
+
   @ManyToOne(() => User, (user) => user.characters, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user!: User;

@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { WsAdapter } from '@nestjs/platform-ws';
 import { DataSource } from 'typeorm';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
@@ -24,6 +25,7 @@ describe('Collect flow (e2e)', () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
+    app.useWebSocketAdapter(new WsAdapter(app));
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
     );

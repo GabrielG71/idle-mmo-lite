@@ -6,6 +6,9 @@ import {
   CharacterState,
   CollectResult,
   PendingProgress,
+  PRESTIGE_BONUS_PCT_PER_TIER,
+  PRESTIGE_UNLOCK_BOSS_ID,
+  PrestigeStatus,
   ZoneId,
 } from '@idle/shared';
 import { Character } from './character.entity';
@@ -13,6 +16,7 @@ import { CharacterBuild } from './character-build.entity';
 import { CharacterClass } from '../classes/class.entity';
 import { Zone } from '../zones/zone.entity';
 import { Item } from '../items/item.entity';
+import { ZoneBossCooldown } from './zone-boss-cooldown.entity';
 import { computePower } from '../game/power';
 import { calculateProgress } from '../game/progress';
 import { aggregateBuildBonuses } from '../game/build';
@@ -35,7 +39,7 @@ export class CharactersService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async create(userId: string, classId: number): Promise<CharacterState> {
+  async create(userId: string, classId: number, nickname?: string): Promise<CharacterState> {
     const cls = await this.classes.findOne({ where: { id: classId } });
     if (!cls) throw new BadRequestException('Invalid classId');
 
@@ -49,6 +53,7 @@ export class CharactersService {
     const saved = await this.dataSource.transaction(async (manager) => {
       const character = manager.create(Character, {
         userId,
+        nickname: nickname?.trim() || null,
         classId,
         currentZoneId: zoneId,
         level: 1,
@@ -85,7 +90,7 @@ export class CharactersService {
       .getRepository(CharacterBuild)
       .findOneOrFail({ where: { characterId: character.id } });
     const equipped = await loadEquippedItems(this.dataSource.manager, build);
-    const bonuses = aggregateBuildBonuses(equipped, build.talents);
+    const bonuses = aggregateBuildBonuses(equipped, build.talents, character.prestigeTier);
 
     const elapsedSeconds = this.elapsedSeconds(character.lastCollectedAt);
     const progress = calculateProgress({
@@ -130,7 +135,7 @@ export class CharactersService {
         .getRepository(CharacterBuild)
         .findOneOrFail({ where: { characterId: character.id } });
       const equipped = await loadEquippedItems(manager, build);
-      const bonuses = aggregateBuildBonuses(equipped, build.talents);
+      const bonuses = aggregateBuildBonuses(equipped, build.talents, character.prestigeTier);
 
       // Banca o pendente nas taxas da zona atual antes de trocar.
       settleAndResnapshot(character, {
@@ -148,6 +153,72 @@ export class CharactersService {
       }
 
       character.currentZoneId = targetZone.id;
+      const saved = await manager.save(character);
+      return toCharacterState(saved);
+    });
+  }
+
+  /** Status de prestígio (§2.2): desbloqueio é permanente uma vez conquistado. */
+  async getPrestigeStatus(id: string, userId: string): Promise<PrestigeStatus> {
+    const character = await loadOwnedCharacter(this.dataSource.manager, id, userId);
+    const unlockKill = await this.dataSource.manager
+      .getRepository(ZoneBossCooldown)
+      .findOne({ where: { characterId: character.id, bossId: PRESTIGE_UNLOCK_BOSS_ID } });
+
+    return {
+      unlocked: !!unlockKill,
+      currentTier: character.prestigeTier,
+      bonusPctPerTier: PRESTIGE_BONUS_PCT_PER_TIER,
+      currentBonusPct: PRESTIGE_BONUS_PCT_PER_TIER * character.prestigeTier,
+      nextBonusPct: PRESTIGE_BONUS_PCT_PER_TIER * (character.prestigeTier + 1),
+    };
+  }
+
+  /**
+   * Prestígio (§2.2, §1 "nunca zera"): reseta nível/XP pra 1, incrementa o
+   * tier e concede um bônus percentual permanente de combat_power. Itens,
+   * talentos, gold e cooldowns de boss são preservados — só nível/XP zeram.
+   * Liquida o farm pendente com o combat_power/tier ANTIGO antes de resetar
+   * (mesma invariante de settle-progress usada em todo o resto do jogo).
+   */
+  async prestige(id: string, userId: string): Promise<CharacterState> {
+    return this.dataSource.transaction(async (manager) => {
+      const character = await loadOwnedCharacterForUpdate(manager, id, userId);
+
+      const unlockKill = await manager
+        .getRepository(ZoneBossCooldown)
+        .findOne({ where: { characterId: character.id, bossId: PRESTIGE_UNLOCK_BOSS_ID } });
+      if (!unlockKill) {
+        throw new BadRequestException('Prestige not unlocked — defeat the required boss first');
+      }
+
+      const zone = await manager
+        .getRepository(Zone)
+        .findOneOrFail({ where: { id: character.currentZoneId } });
+      const cls = await manager
+        .getRepository(CharacterClass)
+        .findOneOrFail({ where: { id: character.classId } });
+      const build = await manager
+        .getRepository(CharacterBuild)
+        .findOneOrFail({ where: { characterId: character.id } });
+      const equipped = await loadEquippedItems(manager, build);
+      const bonuses = aggregateBuildBonuses(equipped, build.talents, character.prestigeTier);
+
+      // Liquida o pendente com o tier ANTIGO antes de resetar nível/xp.
+      settleAndResnapshot(character, {
+        now: new Date(),
+        cls,
+        zone,
+        oldBonuses: bonuses,
+        newBonuses: bonuses,
+      });
+
+      character.level = 1;
+      character.xp = 0;
+      character.prestigeTier += 1;
+      const newBonuses = aggregateBuildBonuses(equipped, build.talents, character.prestigeTier);
+      character.combatPower = computePower(cls, character.level, newBonuses);
+
       const saved = await manager.save(character);
       return toCharacterState(saved);
     });
@@ -180,7 +251,7 @@ export class CharactersService {
         .getRepository(CharacterBuild)
         .findOneOrFail({ where: { characterId: character.id } });
       const equipped = await loadEquippedItems(manager, build);
-      const bonuses = aggregateBuildBonuses(equipped, build.talents);
+      const bonuses = aggregateBuildBonuses(equipped, build.talents, character.prestigeTier);
 
       const { progress, levelBefore, levelAfter, leveledUp } = settleAndResnapshot(
         character,

@@ -77,11 +77,11 @@ export class TalentsService {
       }
 
       const equipped = await loadEquippedItems(manager, build);
-      const oldBonuses = aggregateBuildBonuses(equipped, build.talents);
+      const oldBonuses = aggregateBuildBonuses(equipped, build.talents, character.prestigeTier);
 
       build.talents = { ...target };
 
-      const newBonuses = aggregateBuildBonuses(equipped, build.talents);
+      const newBonuses = aggregateBuildBonuses(equipped, build.talents, character.prestigeTier);
       settleAndResnapshot(character, { now: new Date(), cls, zone, oldBonuses, newBonuses });
 
       await manager.save(character);
@@ -106,8 +106,8 @@ export class TalentsService {
         .findOneOrFail({ where: { characterId: character.id } });
 
       const equipped = await loadEquippedItems(manager, build);
-      const oldBonuses = aggregateBuildBonuses(equipped, build.talents);
-      const newBonuses = aggregateBuildBonuses(equipped, {});
+      const oldBonuses = aggregateBuildBonuses(equipped, build.talents, character.prestigeTier);
+      const newBonuses = aggregateBuildBonuses(equipped, {}, character.prestigeTier);
 
       // Liquida progresso pendente (gold farmado entra ANTES de cobrar o respec).
       settleAndResnapshot(character, { now: new Date(), cls, zone, oldBonuses, newBonuses });

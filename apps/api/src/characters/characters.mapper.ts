@@ -7,6 +7,7 @@ import { xpRequired } from '../game/xp';
 export function toCharacterState(c: Character): CharacterState {
   return {
     id: c.id,
+    nickname: c.nickname,
     classId: c.classId,
     level: c.level,
     xp: c.xp,

@@ -7,6 +7,7 @@ import { api, ApiError } from '@/lib/api';
 
 export function CreateCharacterScreen({ onCreated }: { onCreated: () => void }) {
   const [classes, setClasses] = useState<ClassDef[]>([]);
+  const [nickname, setNickname] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [creatingId, setCreatingId] = useState<number | null>(null);
 
@@ -18,7 +19,7 @@ export function CreateCharacterScreen({ onCreated }: { onCreated: () => void }) 
     setError(null);
     setCreatingId(classId);
     try {
-      await api.createCharacter(classId);
+      await api.createCharacter(classId, nickname.trim() || undefined);
       onCreated();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Falha ao criar personagem');
@@ -35,6 +36,15 @@ export function CreateCharacterScreen({ onCreated }: { onCreated: () => void }) 
       </header>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
+
+      <input
+        type="text"
+        maxLength={24}
+        placeholder="Apelido (opcional — aparece no leaderboard)"
+        value={nickname}
+        onChange={(e) => setNickname(e.target.value)}
+        className="w-full max-w-sm rounded-lg border border-border bg-background/40 px-3 py-2 text-sm outline-none focus:border-primary"
+      />
 
       <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-3">
         {classes.map((cls) => (

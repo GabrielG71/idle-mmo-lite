@@ -9,6 +9,7 @@ import { Character } from '../characters/character.entity';
 import { CharacterBuild } from '../characters/character-build.entity';
 import { Item } from '../items/item.entity';
 import { ZoneBossCooldown } from '../characters/zone-boss-cooldown.entity';
+import { WorldBossReward } from '../world-boss/world-boss-reward.entity';
 
 // Carrega .env da raiz do repo p/ o CLI de migrations.
 loadEnv({ path: join(__dirname, '../../../../.env') });
@@ -22,6 +23,7 @@ export const entities = [
   CharacterBuild,
   Item,
   ZoneBossCooldown,
+  WorldBossReward,
 ];
 
 export const dataSourceOptions: DataSourceOptions = {

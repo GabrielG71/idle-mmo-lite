@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bullmq';
 import { join } from 'path';
 import { validateEnv } from './config/env.validation';
 import { entities } from './config/data-source';
@@ -11,6 +12,13 @@ import { CatalogModule } from './catalog/catalog.module';
 import { ItemsModule } from './items/items.module';
 import { TalentsModule } from './talents/talents.module';
 import { BossesModule } from './bosses/bosses.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { RedisModule } from './redis/redis.module';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
+// TODO(Fase 5, WIP): WorldBossModule ainda não existe (falta processor,
+// controller, module — só service.ts + entity + constants estão prontos).
+// Ver CLAUDE.md "Estado do roadmap" pra retomar de onde parou.
+// import { WorldBossModule } from './world-boss/world-boss.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -37,6 +45,16 @@ import { HealthController } from './health.controller';
         autoLoadEntities: false,
       }),
     }),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: {
+          host: config.getOrThrow<string>('REDIS_HOST'),
+          port: config.getOrThrow<number>('REDIS_PORT'),
+        },
+      }),
+    }),
+    RedisModule,
     AuthModule,
     UsersModule,
     CharactersModule,
@@ -44,6 +62,9 @@ import { HealthController } from './health.controller';
     ItemsModule,
     TalentsModule,
     BossesModule,
+    RealtimeModule,
+    LeaderboardModule,
+    // WorldBossModule, // TODO(Fase 5, WIP): reativar quando o módulo existir.
   ],
   controllers: [HealthController],
 })

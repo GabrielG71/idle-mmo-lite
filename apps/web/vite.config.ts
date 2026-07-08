@@ -17,6 +17,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
+        ws: true, // ticker do PiP (Fase 4) usa WebSocket sob o mesmo prefixo
         rewrite: (p) => p.replace(/^\/api/, ''),
       },
     },

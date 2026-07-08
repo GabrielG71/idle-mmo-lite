@@ -1,5 +1,6 @@
 import {
   AffixType,
+  PRESTIGE_BONUS_PCT_PER_TIER,
   RARITY_CONFIG,
   Rarity,
   getItemTemplate,
@@ -58,13 +59,16 @@ function addAffix(acc: BuildBonuses, type: string, value: number): void {
 }
 
 /**
- * Agrega bônus de itens equipados + talentos alocados. Puro e determinístico.
- * Stats base do template entram como flat, escalados pelo statMultiplier da
- * raridade; afixos já foram rolados com multiplicador na criação do item.
+ * Agrega bônus de itens equipados + talentos alocados + prestígio (Fase 3).
+ * Puro e determinístico. Stats base do template entram como flat, escalados
+ * pelo statMultiplier da raridade; afixos já foram rolados com multiplicador
+ * na criação do item; prestígio soma um bônus percentual permanente que
+ * escala com o tier (`PRESTIGE_BONUS_PCT_PER_TIER`).
  */
 export function aggregateBuildBonuses(
   equippedItems: readonly EquippedItemLike[],
   talents: Record<string, number>,
+  prestigeTier = 0,
 ): BuildBonuses {
   const acc: BuildBonuses = { ...ZERO_BONUSES };
 
@@ -86,6 +90,12 @@ export function aggregateBuildBonuses(
     if (!talent || points <= 0) continue;
     const capped = Math.min(points, talent.maxPoints);
     addAffix(acc, talent.effect.type, talent.effect.valuePerPoint * capped);
+  }
+
+  if (prestigeTier > 0) {
+    const bonus = PRESTIGE_BONUS_PCT_PER_TIER * prestigeTier;
+    acc.pctAttack += bonus;
+    acc.pctSurvivability += bonus;
   }
 
   return acc;

@@ -63,8 +63,21 @@ export const BOSS_ITEM_TEMPLATES: readonly ItemTemplateDef[] = [
   { id: 15, name: 'Peakbound Carapace', slot: EquipSlot.Armor, baseAttack: 2, baseSurvivability: 44 },
 ] as const;
 
+/**
+ * Itens exclusivos do world boss (Fase 5) — pool separado, só rolado pra
+ * top contribuidores quando o evento global é derrotado.
+ */
+export const WORLD_BOSS_ITEM_TEMPLATES: readonly ItemTemplateDef[] = [
+  { id: 16, name: 'Worldbreaker Edge', slot: EquipSlot.Weapon, baseAttack: 50, baseSurvivability: 8 },
+  { id: 17, name: "Titan's Aegis", slot: EquipSlot.Armor, baseAttack: 3, baseSurvivability: 60 },
+] as const;
+
 export function getItemTemplate(id: number): ItemTemplateDef | undefined {
-  return ITEM_TEMPLATES.find((t) => t.id === id) ?? BOSS_ITEM_TEMPLATES.find((t) => t.id === id);
+  return (
+    ITEM_TEMPLATES.find((t) => t.id === id) ??
+    BOSS_ITEM_TEMPLATES.find((t) => t.id === id) ??
+    WORLD_BOSS_ITEM_TEMPLATES.find((t) => t.id === id)
+  );
 }
 
 /** Ranges base por afixo; valor final = roll * statMultiplier da raridade. */

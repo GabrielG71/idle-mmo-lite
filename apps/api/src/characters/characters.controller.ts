@@ -7,7 +7,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { BuildState, CharacterState, CollectResult } from '@idle/shared';
+import { BuildState, CharacterState, CollectResult, PrestigeStatus } from '@idle/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthUser } from '../auth/jwt.strategy';
@@ -27,7 +27,7 @@ export class CharactersController {
 
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateCharacterBodyDto) {
-    return this.characters.create(user.id, dto.classId);
+    return this.characters.create(user.id, dto.classId, dto.nickname);
   }
 
   @Get(':id')
@@ -61,5 +61,21 @@ export class CharactersController {
     @Body() dto: TravelBodyDto,
   ): Promise<CharacterState> {
     return this.characters.travelToZone(id, user.id, dto.zoneId);
+  }
+
+  @Get(':id/prestige')
+  getPrestigeStatus(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<PrestigeStatus> {
+    return this.characters.getPrestigeStatus(id, user.id);
+  }
+
+  @Post(':id/prestige')
+  prestige(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<CharacterState> {
+    return this.characters.prestige(id, user.id);
   }
 }

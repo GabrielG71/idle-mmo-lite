@@ -16,6 +16,8 @@ import { Progress } from '@/components/ui/progress';
 import { InventoryPanel } from '@/components/InventoryPanel';
 import { TalentsPanel } from '@/components/TalentsPanel';
 import { MapPanel } from '@/components/MapPanel';
+import { PrestigePanel } from '@/components/PrestigePanel';
+import { PipLauncher } from '@/components/PipLauncher';
 import { api, setToken } from '@/lib/api';
 
 const CLASS_LABEL: Record<number, string> = {
@@ -88,9 +90,12 @@ export function Dashboard({ characterId, onLogout }: { characterId: string; onLo
         <h1 className="bg-gradient-to-br from-white to-muted bg-clip-text text-2xl font-bold text-transparent">
           Idle MMO-lite
         </h1>
-        <Button variant="ghost" size="sm" className="gap-2" onClick={logout}>
-          <LogOut size={14} /> Sair
-        </Button>
+        <div className="flex items-center gap-2">
+          <PipLauncher characterId={characterId} classId={character.classId} />
+          <Button variant="ghost" size="sm" className="gap-2" onClick={logout}>
+            <LogOut size={14} /> Sair
+          </Button>
+        </div>
       </header>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
@@ -166,6 +171,13 @@ export function Dashboard({ characterId, onLogout }: { characterId: string; onLo
       <MapPanel
         characterId={characterId}
         character={character}
+        onCharacterChanged={(updated) => {
+          setCharacter((prev) => (prev ? { ...prev, ...updated } : prev));
+        }}
+      />
+
+      <PrestigePanel
+        characterId={characterId}
         onCharacterChanged={(updated) => {
           setCharacter((prev) => (prev ? { ...prev, ...updated } : prev));
         }}

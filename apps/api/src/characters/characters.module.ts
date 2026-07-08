@@ -13,5 +13,6 @@ import { CharactersController } from './characters.controller';
   ],
   providers: [CharactersService],
   controllers: [CharactersController],
+  exports: [CharactersService],
 })
 export class CharactersModule {}

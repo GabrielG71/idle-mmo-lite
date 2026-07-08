@@ -10,6 +10,7 @@ import type {
   ItemState,
   ItemTemplateDef,
   PendingProgress,
+  PrestigeStatus,
   TalentDef,
   ZoneDef,
 } from '@idle/shared';
@@ -72,10 +73,10 @@ export const api = {
   listTalentDefs: () => request<TalentDef[]>('/talents'),
   listBossDefs: () => request<BossDef[]>('/bosses'),
   listCharacters: () => request<CharacterState[]>('/characters'),
-  createCharacter: (classId: number) =>
+  createCharacter: (classId: number, nickname?: string) =>
     request<CharacterState>('/characters', {
       method: 'POST',
-      body: JSON.stringify({ classId }),
+      body: JSON.stringify({ classId, nickname }),
     }),
   getCharacter: (id: string) =>
     request<CharacterState & { pending: PendingProgress }>(`/characters/${id}`),
@@ -110,4 +111,7 @@ export const api = {
     request<BossKillResult>(`/characters/${id}/bosses/${bossId}/kill`, {
       method: 'POST',
     }),
+  getPrestigeStatus: (id: string) => request<PrestigeStatus>(`/characters/${id}/prestige`),
+  prestige: (id: string) =>
+    request<CharacterState>(`/characters/${id}/prestige`, { method: 'POST' }),
 };
