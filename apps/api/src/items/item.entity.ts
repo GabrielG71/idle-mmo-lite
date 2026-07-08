@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -9,10 +10,10 @@ import {
 import { Character } from '../characters/character.entity';
 
 /**
- * Inventário de itens. Fase 0: tabela criada vazia (schema pronto).
- * Lógica de raridade/afixos/durabilidade entra na Fase 1.
+ * Inventário de itens (Fase 1: raridade/afixos ativos; durabilidade adiada).
  */
 @Entity('items')
+@Index('idx_items_character', ['characterId'])
 export class Item {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

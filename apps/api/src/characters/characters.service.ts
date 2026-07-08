@@ -1,12 +1,8 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import {
+  BuildState,
   CharacterState,
   CollectResult,
   PendingProgress,
@@ -16,10 +12,16 @@ import { Character } from './character.entity';
 import { CharacterBuild } from './character-build.entity';
 import { CharacterClass } from '../classes/class.entity';
 import { Zone } from '../zones/zone.entity';
+import { Item } from '../items/item.entity';
 import { computePower } from '../game/power';
-import { applyXp } from '../game/xp';
 import { calculateProgress } from '../game/progress';
-import { toCharacterState } from './characters.mapper';
+import { aggregateBuildBonuses } from '../game/build';
+import { rollLoot } from '../game/loot';
+import { toBuildState, toCharacterState } from './characters.mapper';
+import { toItemState } from '../items/items.mapper';
+import { loadOwnedCharacter, loadOwnedCharacterForUpdate } from './character-access';
+import { loadEquippedItems } from '../items/equipped-items';
+import { settleAndResnapshot } from './settle-progress';
 
 @Injectable()
 export class CharactersService {
@@ -65,14 +67,12 @@ export class CharactersService {
     return toCharacterState(saved);
   }
 
-  private async loadOwned(id: string, userId: string): Promise<Character> {
-    const character = await this.characters.findOne({
-      where: { id },
-      relations: { class: true, currentZone: true },
+  async listForUser(userId: string): Promise<CharacterState[]> {
+    const characters = await this.characters.find({
+      where: { userId },
+      order: { createdAt: 'ASC' },
     });
-    if (!character) throw new NotFoundException('Character not found');
-    if (character.userId !== userId) throw new ForbiddenException();
-    return character;
+    return characters.map(toCharacterState);
   }
 
   /** Estado + preview do progresso pendente (sem coletar). */
@@ -80,12 +80,20 @@ export class CharactersService {
     id: string,
     userId: string,
   ): Promise<CharacterState & { pending: PendingProgress }> {
-    const character = await this.loadOwned(id, userId);
+    const character = await loadOwnedCharacter(this.dataSource.manager, id, userId);
+    const build = await this.dataSource.manager
+      .getRepository(CharacterBuild)
+      .findOneOrFail({ where: { characterId: character.id } });
+    const equipped = await loadEquippedItems(this.dataSource.manager, build);
+    const bonuses = aggregateBuildBonuses(equipped, build.talents);
+
     const elapsedSeconds = this.elapsedSeconds(character.lastCollectedAt);
     const progress = calculateProgress({
       elapsedSeconds,
       combatPower: character.combatPower,
       zone: character.currentZone,
+      xpMultiplier: 1 + bonuses.pctXp / 100,
+      goldMultiplier: 1 + bonuses.pctGold / 100,
     });
 
     return {
@@ -101,21 +109,66 @@ export class CharactersService {
   }
 
   /**
-   * Coleta autoritativa (§6.3). Transação + pessimistic write lock na row do
-   * character: cursor last_collected_at é lido, aplicado e avançado atomicamente,
-   * impedindo double-collect em requisições concorrentes.
+   * Viagem entre zonas (§4: gate por power score, não level). Liquida o
+   * progresso pendente nas taxas da zona ATUAL antes de trocar — a mudança
+   * de zona nunca re-precifica retroativamente o farm já acumulado.
+   */
+  async travelToZone(id: string, userId: string, zoneId: number): Promise<CharacterState> {
+    return this.dataSource.transaction(async (manager) => {
+      const character = await loadOwnedCharacterForUpdate(manager, id, userId);
+
+      const targetZone = await manager.getRepository(Zone).findOne({ where: { id: zoneId } });
+      if (!targetZone) throw new BadRequestException('Invalid zoneId');
+
+      const currentZone = await manager
+        .getRepository(Zone)
+        .findOneOrFail({ where: { id: character.currentZoneId } });
+      const cls = await manager
+        .getRepository(CharacterClass)
+        .findOneOrFail({ where: { id: character.classId } });
+      const build = await manager
+        .getRepository(CharacterBuild)
+        .findOneOrFail({ where: { characterId: character.id } });
+      const equipped = await loadEquippedItems(manager, build);
+      const bonuses = aggregateBuildBonuses(equipped, build.talents);
+
+      // Banca o pendente nas taxas da zona atual antes de trocar.
+      settleAndResnapshot(character, {
+        now: new Date(),
+        cls,
+        zone: currentZone,
+        oldBonuses: bonuses,
+        newBonuses: bonuses,
+      });
+
+      if (character.combatPower < targetZone.minPowerScore) {
+        throw new BadRequestException(
+          `Not enough power for ${targetZone.name} (needs ${targetZone.minPowerScore})`,
+        );
+      }
+
+      character.currentZoneId = targetZone.id;
+      const saved = await manager.save(character);
+      return toCharacterState(saved);
+    });
+  }
+
+  async getBuild(id: string, userId: string): Promise<BuildState> {
+    const character = await loadOwnedCharacter(this.dataSource.manager, id, userId);
+    const build = await this.dataSource.manager
+      .getRepository(CharacterBuild)
+      .findOneOrFail({ where: { characterId: character.id } });
+    return toBuildState(build, character.level);
+  }
+
+  /**
+   * Coleta autoritativa (§6.3). Transação + pessimistic write lock; liquida
+   * progresso com o combat_power vigente (já reflete a build atual), rola
+   * loot proporcional ao tempo coberto e persiste os itens.
    */
   async collect(id: string, userId: string): Promise<CollectResult> {
     return this.dataSource.transaction(async (manager) => {
-      const character = await manager
-        .getRepository(Character)
-        .createQueryBuilder('c')
-        .setLock('pessimistic_write')
-        .where('c.id = :id', { id })
-        .getOne();
-
-      if (!character) throw new NotFoundException('Character not found');
-      if (character.userId !== userId) throw new ForbiddenException();
+      const character = await loadOwnedCharacterForUpdate(manager, id, userId);
 
       const zone = await manager
         .getRepository(Zone)
@@ -123,26 +176,37 @@ export class CharactersService {
       const cls = await manager
         .getRepository(CharacterClass)
         .findOneOrFail({ where: { id: character.classId } });
+      const build = await manager
+        .getRepository(CharacterBuild)
+        .findOneOrFail({ where: { characterId: character.id } });
+      const equipped = await loadEquippedItems(manager, build);
+      const bonuses = aggregateBuildBonuses(equipped, build.talents);
 
-      const now = new Date();
-      const elapsedSeconds = this.elapsedSeconds(character.lastCollectedAt, now);
-      const progress = calculateProgress({
-        elapsedSeconds,
-        combatPower: character.combatPower,
-        zone,
-      });
+      const { progress, levelBefore, levelAfter, leveledUp } = settleAndResnapshot(
+        character,
+        {
+          now: new Date(),
+          cls,
+          zone,
+          oldBonuses: bonuses,
+          newBonuses: bonuses, // build não muda durante collect
+        },
+      );
 
-      const levelBefore = character.level;
-      const applied = applyXp(character.level, character.xp, progress.deltaXp);
-
-      character.level = applied.level;
-      character.xp = applied.xp;
-      character.gold += progress.deltaGold;
-      character.lastCollectedAt = now;
-      // combat_power depende do nível -> re-snapshot em level up.
-      if (applied.leveledUp) {
-        character.combatPower = computePower(cls, character.level);
-      }
+      const rolled = rollLoot({ cappedElapsedSeconds: progress.cappedElapsedSeconds });
+      const itemRepo = manager.getRepository(Item);
+      const droppedItems = rolled.length
+        ? await itemRepo.save(
+            rolled.map((r) =>
+              itemRepo.create({
+                characterId: character.id,
+                templateId: r.templateId,
+                rarity: r.rarity,
+                affixes: r.affixes,
+              }),
+            ),
+          )
+        : [];
 
       const saved = await manager.save(character);
 
@@ -152,8 +216,9 @@ export class CharactersService {
         cappedElapsedSeconds: progress.cappedElapsedSeconds,
         capReached: progress.capReached,
         levelBefore,
-        levelAfter: saved.level,
-        leveledUp: applied.leveledUp,
+        levelAfter,
+        leveledUp,
+        droppedItems: droppedItems.map((item) => toItemState(item)),
         character: toCharacterState(saved),
       };
     });

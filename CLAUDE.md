@@ -12,7 +12,8 @@ real do navegador (fase futura). Backend é **autoritativo** — cliente nunca e
 
 ```
 apps/api        NestJS + TypeScript + TypeORM. REST + (futuro) WS gateway.
-apps/web        Vite + React + Tailwind + shadcn/ui. Placeholder nesta fase.
+apps/web        Vite + React + Tailwind + shadcn/ui. UI funcional (auth, personagem, mapa,
+                inventário, talentos) — SPA sem router, sem PiP ainda.
 packages/shared Tipos/DTOs/enums + constantes de balanceamento (compartilhado back/front).
 docker-compose.yml  Postgres 16 + Redis 7.
 ```
@@ -58,14 +59,58 @@ Definidos em `packages/shared/src/balance.ts`:
   **Rogue** (atk alto, survival médio).
 - Offline cap: **8h** (`offlineCapSeconds = 28800`) por zona.
 
+Fase 1, em `packages/shared/src/items.ts` e `talents.ts`:
+- Drop: 1 esperado a cada 30min de farm (`DROP_INTERVAL_SECONDS=1800`), cap de 16 por coleta
+  (`MAX_DROPS_PER_COLLECT`, casa com o cap offline de 8h). Raridade por peso em `RARITY_CONFIG`
+  (Common…Legendary), cada uma escalando stats/afixos via `statMultiplier`.
+- Talentos: 1 ponto por nível (`TALENT_POINTS_PER_LEVEL`), respec custa
+  `RESPEC_BASE_COST(100) * 2^respecCount`.
+
+Fase 2, em `packages/shared/src/bosses.ts` e migration `SeedPhase2Zones`:
+- 3 zonas: Greenwood (`minPowerScore=0`), Ashen Ridge (`40`), Shattered Peaks (`120`) — rates de
+  xp/gold crescem com a zona, cap offline continua 8h em todas.
+- 1 boss por zona, `minPowerScore` própria (pode ser > que a da zona): Bramblehide Alpha (20,
+  cooldown 4h), Cinder Warden (60, cooldown 8h), Peakbound Wyrm (150, cooldown 12h). Loot
+  exclusivo (`BOSS_ITEM_TEMPLATES`, ids 10-15) com piso de raridade Rare, nunca dropa no farm
+  comum.
+
 ## Estado do roadmap
 
 - **Fase 0 (DONE)**: auth (email+senha, argon2+JWT), characters, 3 classes, 1 zona, offline
   progress, collect. Sem PiP.
-- **Pendente**: itens/afixos/talentos/power score (F1), zonas+bosses (F2), prestígio (F3),
-  PiP (F4), leaderboards/world boss Redis+BullMQ (F5).
+- **Fase 1 (DONE)**: itens com raridade/afixos, loot no collect (`rollLoot`, determinístico no
+  piso + 1 drop fracionário probabilístico), árvore de talentos por classe, respec com custo
+  crescente, `combat_power` agregando bônus de build (`aggregateBuildBonuses`). UI mínima
+  (auth, criação de personagem, inventário, talentos) em `@idle/web`.
+- **Fase 2 (DONE)**: 3 zonas com gate por power score, viagem entre zonas (`travelToZone`),
+  1 boss por zona com cooldown por personagem e loot exclusivo. Painel de Mapa em `@idle/web`.
+- **Pendente**: prestígio (F3), PiP (F4), leaderboards/world boss Redis+BullMQ (F5).
+
+### Fase 1 — o que foi adicionado
+- Catálogo em `packages/shared`: `items.ts` (templates, raridade, afixos, tuning de drop),
+  `talents.ts` (árvores por classe, custo de respec).
+- Math pura em `apps/api/src/game/`: `build.ts` (`aggregateBuildBonuses`), `loot.ts`
+  (`rollLoot`), `power.ts`/`progress.ts` estendidos com bônus/multiplicadores opcionais.
+- `apps/api/src/characters/settle-progress.ts`: helper único usado por collect **e** por toda
+  mutação de build (equip/unequip/talentos/respec) — sempre liquida a janela pendente com o
+  `combat_power` vigente antes de re-snapshotar com os bônus novos (nunca re-precifica
+  retroativamente).
+- Endpoints novos: `GET /characters`, `GET /characters/:id/build`,
+  `GET|POST /characters/:id/items[...]/equip|unequip`,
+  `POST /characters/:id/talents[/respec]`, `GET /item-templates`, `GET /talents`.
+
+### Fase 2 — o que foi adicionado
+- Catálogo em `packages/shared/src/bosses.ts` (`BossDef`, `BOSSES`) — DB só guarda o cooldown
+  por personagem (`zone_boss_cooldowns`, schema já existia desde a Fase 0).
+- Math pura em `apps/api/src/game/boss.ts`: `bossCooldownRemainingSeconds`, `rollBossLoot`
+  (piso de raridade Rare, reaproveita `rollRarity`/`rollAffixes` de `loot.ts`).
+- `settle-progress.ts` ganhou `extraXp`/`extraGold` opcionais — usado pelo kill de boss pra
+  creditar a recompensa fixa no mesmo passo de liquidação/level-up/re-snapshot do farm passivo.
+- `CharactersService.travelToZone`: liquida o pendente nas taxas da zona ATUAL antes de trocar
+  (mesmo padrão de equip/talentos), valida `combat_power >= zone.minPowerScore`.
+- Endpoints novos: `POST /characters/:id/zone`, `GET /characters/:id/bosses` (status de TODOS
+  os bosses, não só o da zona atual), `POST /characters/:id/bosses/:bossId/kill`, `GET /bosses`.
 
 ### TODOs conhecidos (schema pronto, lógica adiada)
 - Streak de coleta, durabilidade de equipamento, consumíveis — colunas existem, sem lógica.
 - Rate limit de collect via Redis (1req/5s, §6.3) — Redis provisionado mas não cabeado ainda.
-- Tabelas `items` e `zone_boss_cooldowns` criadas vazias (Fase 1/2).

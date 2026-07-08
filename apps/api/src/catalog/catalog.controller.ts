@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { BOSSES, BossDef, ITEM_TEMPLATES, ItemTemplateDef, TalentDef, TALENTS } from '@idle/shared';
 import { CharacterClass } from '../classes/class.entity';
 import { Zone } from '../zones/zone.entity';
 
@@ -22,5 +23,20 @@ export class CatalogController {
   @Get('zones')
   listZones(): Promise<Zone[]> {
     return this.zones.find({ order: { id: 'ASC' } });
+  }
+
+  @Get('item-templates')
+  listItemTemplates(): readonly ItemTemplateDef[] {
+    return ITEM_TEMPLATES;
+  }
+
+  @Get('talents')
+  listTalents(): readonly TalentDef[] {
+    return TALENTS;
+  }
+
+  @Get('bosses')
+  listBosses(): readonly BossDef[] {
+    return BOSSES;
   }
 }

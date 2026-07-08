@@ -23,14 +23,19 @@ export class CharacterBuild {
   @JoinColumn({ name: 'character_id' })
   character!: Character;
 
+  /** talentId -> pontos alocados. */
   @Column({ type: 'jsonb', default: () => "'{}'" })
-  talents!: Record<string, unknown>;
+  talents!: Record<string, number>;
 
   @Column({ name: 'equipped_items', type: 'jsonb', default: () => "'{}'" })
   equippedItems!: Record<string, string>;
 
   @Column({ name: 'active_consumables', type: 'jsonb', default: () => "'[]'" })
   activeConsumables!: unknown[];
+
+  /** Incrementado a cada respec de talentos; usado p/ custo crescente (§3). */
+  @Column({ name: 'respec_count', type: 'smallint', default: 0 })
+  respecCount!: number;
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date;

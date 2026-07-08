@@ -9,6 +9,8 @@ export enum ClassId {
 
 export enum ZoneId {
   Greenwood = 1,
+  AshenRidge = 2,
+  ShatteredPeaks = 3,
 }
 
 export interface ClassDef {
@@ -52,6 +54,26 @@ export interface PendingProgress {
   capReached: boolean;
 }
 
+/** Item instanciado (inventário). Template/nome vêm do catálogo compartilhado. */
+export interface ItemState {
+  id: string;
+  templateId: number;
+  rarity: number;
+  affixes: Record<string, number>; // AffixType -> valor rolado
+  /** Slot em que está equipado, se estiver. */
+  equippedSlot: string | null;
+}
+
+/** Build do personagem exposta ao cliente. */
+export interface BuildState {
+  talents: Record<string, number>; // talentId -> pontos
+  equippedItems: Record<string, string>; // slot -> itemId
+  talentPointsTotal: number;
+  talentPointsSpent: number;
+  respecCount: number;
+  respecCost: number;
+}
+
 /** Resultado de uma coleta. */
 export interface CollectResult {
   collectedXp: number;
@@ -61,6 +83,42 @@ export interface CollectResult {
   levelBefore: number;
   levelAfter: number;
   leveledUp: boolean;
+  droppedItems: ItemState[];
+  character: CharacterState;
+}
+
+/** Aloca pontos de talento (estado-alvo absoluto, apenas aditivo). */
+export interface AllocateTalentsDto {
+  talents: Record<string, number>;
+}
+
+/** Viagem entre zonas (§4: gate por power score, não level). */
+export interface TravelDto {
+  zoneId: number;
+}
+
+/** Status de um boss pro personagem atual (mapa completo, Fase 2). */
+export interface BossStatus {
+  bossId: number;
+  zoneId: number;
+  name: string;
+  minPowerScore: number;
+  cooldownHours: number;
+  inCurrentZone: boolean;
+  powerSufficient: boolean;
+  onCooldownUntil: string | null; // ISO, null se disponível agora
+  canChallenge: boolean;
+}
+
+/** Resultado de matar um boss. */
+export interface BossKillResult {
+  xpAwarded: number;
+  goldAwarded: number;
+  levelBefore: number;
+  levelAfter: number;
+  leveledUp: boolean;
+  droppedItems: ItemState[];
+  cooldownUntil: string; // ISO
   character: CharacterState;
 }
 

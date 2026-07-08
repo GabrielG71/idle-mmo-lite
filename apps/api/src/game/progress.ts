@@ -7,6 +7,9 @@ export interface ProgressInput {
     Zone,
     'xpRatePerPowerSec' | 'goldRatePerPowerSec' | 'offlineCapSeconds'
   >;
+  /** Multiplicadores da build (ex: 1.05 = +5% de pctXp). Default 1. */
+  xpMultiplier?: number;
+  goldMultiplier?: number;
 }
 
 export interface ProgressResult {
@@ -26,14 +29,18 @@ export interface ProgressResult {
  */
 export function calculateProgress(input: ProgressInput): ProgressResult {
   const { combatPower, zone } = input;
+  const xpMult = input.xpMultiplier ?? 1;
+  const goldMult = input.goldMultiplier ?? 1;
   const elapsed = Math.max(0, Math.floor(input.elapsedSeconds));
   const cap = zone.offlineCapSeconds;
   const cappedElapsed = Math.min(elapsed, cap);
   const capReached = elapsed >= cap;
 
-  const deltaXp = Math.floor(combatPower * zone.xpRatePerPowerSec * cappedElapsed);
+  const deltaXp = Math.floor(
+    combatPower * zone.xpRatePerPowerSec * cappedElapsed * xpMult,
+  );
   const deltaGold = Math.floor(
-    combatPower * zone.goldRatePerPowerSec * cappedElapsed,
+    combatPower * zone.goldRatePerPowerSec * cappedElapsed * goldMult,
   );
 
   return { cappedElapsedSeconds: cappedElapsed, capReached, deltaXp, deltaGold };

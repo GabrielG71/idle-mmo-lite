@@ -8,6 +8,9 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { CharactersModule } from './characters/characters.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { ItemsModule } from './items/items.module';
+import { TalentsModule } from './talents/talents.module';
+import { BossesModule } from './bosses/bosses.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -38,6 +41,9 @@ import { HealthController } from './health.controller';
     UsersModule,
     CharactersModule,
     CatalogModule,
+    ItemsModule,
+    TalentsModule,
+    BossesModule,
   ],
   controllers: [HealthController],
 })
